@@ -1,0 +1,125 @@
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+
+ items: [
+        {
+            xtype: 'container',
+            itemId: 'gridcontainer',
+            columnwidth: 1
+        }
+        ],
+        
+        _summaryGrid: null,
+    
+    launch: function() {
+        
+        console.log('debug1');
+        this._summarizeDefectMatrix();
+
+    },
+    
+    
+    _summarizeDefectMatrix: function() {
+        var me = this;
+        var promises = [];
+        var resultArray = [];
+        
+        promises.push(me._getCount('Defect', 'Environment', 'Test'));
+        promises.push(me._getCount('Defect', 'Environment','Staging'));
+        promises.push(me._getCount('Defect', 'Environment','Production'));
+        
+        
+        Deft.Promise.all(promises).then({
+            success: function(results) {
+                Ext.Array.each(results, function(result){
+                    resultArray.push(result);
+                    console.log(result);
+                });
+                
+                me._makeGrid(resultArray);
+            }
+        });
+    },
+    
+    
+    _getCount: function(modelType, attribute, attrValue){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        var artifactStore = Ext.create('Rally.data.wsapi.Store', {
+            model: modelType,
+            pagesize: 1,
+            autoload: true,
+            filters: [
+                {
+                    property: attribute,
+                    operator: '=',
+                    value: attrValue
+                }
+                ],
+            sorters: [
+                {
+                    property: 'FormattedID',
+                    direction: 'ASC'
+                }
+                ],
+            Listeners: {
+                load: function(store, records){
+                    result= {
+                        "ModelType": modelType,
+                        "Attribute": attribute,
+                        "Value": attrValue,
+                        "Count": manualCount
+                    };
+                    deferred.resolve(result);
+                }
+            }
+        });
+        return deferred;
+    },
+    
+    
+    
+    _makeGrid: function(results) {
+        var me= this;
+        
+        
+        if (me._summaryGrid){
+            me._summaryGrid.destroy();
+        }
+        
+        var gridStore = Ext.create('Rally.data.custom.Store',{
+            data: results,
+            pagesize: 5,
+            remoteSort: false
+            
+        });
+        
+        me._summaryGrid = Ext.create('Rally.ui.grid.Grid',{
+            itemId: 'artifactGrid',
+            store: gridStore,
+            
+            columnCfgs:[
+                {
+                    text: 'Artifact', dataIndex: 'ModelType'
+                },
+                {
+                    text: 'Attribute', dataIndex: 'Attribute'
+                },
+                {
+                    text: 'Value', dataIndex: 'Value'
+                },
+                {
+                    text: 'Count', dataIndex: 'Count'
+                }
+                ]
+        });
+        me.down('#gridContainer').add(me._summaryGrid);
+        me._summaryGrid.reconfigure(gridStore);
+        
+        
+        
+        
+    }
+});
+

@@ -1,0 +1,191 @@
+launch : function(){
+    console.log('Launch');
+    this._loadDataModel().then({
+        success: this._getSeverityValues,
+        scope:this,
+        error: alert('something bad happened')
+    }).then ({
+            success: this._getStateValues,
+            scope:this
+        }).then ({
+            success: this._getDefects,
+            scope:this
+        });
+},
+
+    _loadDataModel: function(){
+       return Rally.data.ModelFactory.getModel({
+        type:'Defect'
+            });
+    },
+    
+    _getSeverityValues: function(model) {
+        var that = this;
+        that._model= model;
+        var deferred = Ext.create('Deft.Deferred');
+        var severityValues = [];
+        model.getField('Severity').getAllowedValueStore().load({
+            callback: function(records, operation, success){
+                Ext.Array.each(records, function(allowedValue){
+                    severityValues.push(allowedValue.get('stringValue'));
+                });
+                if(success){
+                    severityValues=_.rest(severityValues) ;
+                    deferred.resolve(severityValues);
+                }
+                else{
+                    deferred.reject();
+                }
+            }
+        }) ;
+        return deferred.promise;
+    },
+    
+    _intializeAllFeatureStore: function() { 
+      if(this.defectModel) {
+          var allFeatureStore = Ext.create('Rally.data.wsapi.Store',
+          {
+              model: this.defectModel,
+              fetch: ['State', 'Severity'],
+              autoload: true,
+              limit: Infinity,
+              context: this.getContext() .getDataContext(),
+              listeners: {
+                  load: this._onAllFeatureStoreLoaded,
+                  function(allFeatureStore, allFeaturedata, success){
+                  console.log('defectModel', allFeatureStore)
+                  },
+                  scope: this
+              }
+          });
+      }
+      console.log('InitializeAllFeatureStore Ran Successfully')
+        
+    },
+    
+    _onAllFeatureStoreLoaded: function(store, records, successful, eOpts){
+      this._initializeMatrixTable();
+      this._populateMatrixTable(records);
+      this._createSeverityRecords(records);
+      this._updateMatrixGrid();
+      console.log('OnAllFeaturestoreloaded Ran Successfully')
+    },
+    
+    _initializeMatrixTable: function() {
+        this.matrixTable = [];
+        Ext.each(this.priorities, function(priority, pIndex){
+            this.matrixTable[pIndex] = [];
+            Ext.each(this.states, function(state, sIndex) {
+                this.matrixTable[pIndex][sIndex] = 0;
+            }, this);
+        }, this);
+    },
+    
+    
+    _populateMatrixTable: function(defectRecords) {
+        var severityIndex, stateIndex;
+        Ext.each(defectRecords, function(record){
+            var severity = record.get('Severity');
+            if (!severity) {
+                severity = 'None';
+            }
+            else{
+                state= record.get('State')._refObjectName;
+            }
+            severityIndex= this._determineSeverityIndex(severity, record)
+            stateIndex= this._determineStateIndex(state, record);
+            this.matrixTable[severityIndex][stateIndex]++;
+            }, this)
+        },
+    
+    
+    
+    _determineSeverityIndex: function(value, record) {
+        return this.severity.indexOf(value);
+    },
+    
+    
+    _determineStateIndex: function(value, record) {
+        return this.states.indexOf(value);
+    },
+    
+    _createSeverityRecords: function(defectRecords){
+        var currentRecord,
+            rowtotal,
+            coltotals = new Array(this.states);
+        this.severityRecords = [];
+        
+        
+        Ext.each(this.states, function(state, sIndex){
+            coltotals[sIndex] = 0;
+        });
+        
+        Ext. each( this.matrixTable, function(stateArray, SeverityIndex){
+            currentRecord = {Severity: this.severities[severityIndex]};
+            rowtotal = 0;
+        this.severityRecords.push(currentRecord)
+        }, this );
+        
+        currentRecord = {Severity: 'Total'};
+        this.severityRecords.push(currentRecord)
+    },
+    
+    _createMatrixGridStore: function(){
+        return Ext.create('Rally.data.custom.Store',{
+            data: this.priorityRecords,
+            pageSize: this.priorityRecords.length
+        }
+        );
+    },
+    
+    _createMatrixGrid: function(store) {
+        this.matrixGrid = this.add(Ext.create('Rally.ui.grid.Grid', {
+            store: store,
+            showPagingToolbar: false,
+            sortableColumns: false,
+            showRowActionsColumn: false,
+            columnCfgs: this._buildColumns(),
+        }))
+    },
+    
+    
+    _updateMatrixGrid: function() {
+      var newMatrixGridStore= this._createMatrixGridStore();
+      
+        if(this.matrixGrid) {
+            this.matrixGrid.getView().bindStore(newMatrixGridStore);
+            this.matrixGrid.setLoading(false);
+        } else {
+            this._createMatrixGrid(newMatrixGridStore);
+        }
+    },
+    
+    _buildColumns: function() {
+        var columns = [
+            {
+                text: "",
+                dataIndex: 'Priority',
+                flex: 0.4
+            }
+            ];
+            
+            Ext.each(this.states, function(state) {
+                columns.push({
+                    text: state,
+                    dataIndex: state,
+                    flex: 0.3
+                });
+            });
+    
+    columns.push({
+        text: "Total",
+        dataIndex: 'RowTotal',
+        flex: 0.3
+    });
+    return columns
+            
+            
+    },
+    
+    
+});

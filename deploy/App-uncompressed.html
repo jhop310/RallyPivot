@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>rallymatrix</title>
+
+
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+    <!--Jquery Libs from CDNJS-->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.js"></script>
+
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.1/sdk-debug.js"></script>
+    
+    <!--PivotTable Libs-->
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.7.0/pivot.min.css">
+    <script type= "text/javascript" src ="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.7.0/pivot.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.7.0/gchart_renderers.min.js"></script>
+    <style>
+            body {font-family: Verdana;}
+        </style>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    items: [
+        {
+            xtype: 'container',
+            itemId: 'newdiv',
+            Id: 'container'
+        }
+    ],
+
+
+    launch: function () {
+        Ext.create('Rally.data.wsapi.Store', {
+            model: 'defect',
+            autoLoad: true,
+            limit: Infinity,
+            listeners: {
+                load: (
+                    console.log('Data Loaded'),
+                    this._onDataLoaded
+                    ),
+                scope: this
+            },
+            fetch: ['State', 'Severity', 'Environment', 'Owner', 'FormattedID', 'CreationDate', 'ClosedDate', 'Iteration', 'Release'],
+        });
+    },
+
+    _onDataLoaded: function (store, data) {
+        console.log('Data:', store, data); //log function call
+
+        var envRecords = _.map(data, function (record) {
+            return record.get('Environment');
+        });
+        var stateRecords = _.map(data, function (record) {
+            return record.get('State');
+        });
+
+        var sevRecords = _.map(data, function (record) {
+            return record.get('Severity');
+        });
+        var createDateRecords = _.map(data, function (record) {
+            return record.get('CreationDate');
+        });
+        var ownerRecords = _.map(data, function (record) {
+            var owner1 = record.get('Owner') && record.get('Owner')._refObjectName;
+            return owner1;
+        });
+        var fIDRecords = _.map(data, function (record) {
+            return record.get('FormattedID');
+        });
+        var closeDateRecords = _.map(data, function (record) {
+            return record.get('ClosedDate');
+        });
+        var agingRecords = _.map(data, function (record) {
+            var na = 'Not Yet Closed';
+            var age = Math.round((record.get('ClosedDate') - record.get('CreationDate')) / 86400000);
+            if (age < 0) {
+                return na;
+            }
+            else {
+                return age;
+            }
+        });
+        var releaseRecords = _.map(data, function (record) {
+            var release1 = record.get('Release') && record.get('Release')._refObjectName;
+            return release1;
+        });
+
+
+
+        //Log each record 
+        //console.log('FID:', fIDRecords);
+        //console.log('state:', stateRecords);
+        //console.log('severity:', sevRecords);
+        //console.log('Aging:' + agingRecords);
+        //console.log('OwnerRecords:' + ownerRecords);
+
+        this._createMatrix(envRecords, sevRecords, stateRecords, createDateRecords, fIDRecords, closeDateRecords, agingRecords, ownerRecords, releaseRecords);
+
+
+    },
+
+    _createMatrix: function (envRecords, sevRecords, stateRecords, createDateRecords, fIDRecords, closeDateRecords, agingRecords, ownerRecords, releaseRecords) {
+        console.log('_CreateMatrix Called');
+
+        var recordData = [];
+        //create array of all records needed
+        var limit = envRecords.length;
+        for (var i = 0; i < limit; i++) {
+            recordData.push([
+                'Environment :' + envRecords[i],
+                'State :' + stateRecords[i],
+                'Severity :' + sevRecords[i],
+                'CreationDate :' + createDateRecords[i],
+                'ClosedDate :' + closeDateRecords[i],
+                'FormattedID :' + fIDRecords[i],
+                'Aging :' + agingRecords[i],
+                'Owner :' + ownerRecords[i],
+                'Release :' + releaseRecords[i]
+            ]
+                );
+        }
+
+        //console.log('Record Data:' + recordData);
+
+        var input1 = JSON.stringify(recordData);
+
+        var input2 = input1.replace(/\[/g, '{');
+        var input3 = input2.replace(/\]/g, '}');
+        var input4 = input3.replace(/^{/, '[');
+        var input5 = input4.replace(/}$/, ']');
+        var input6 = input5.replace(/"Environment :/g, '"Environment" : "');
+        var input7 = input6.replace(/"State :/g, '"State" : "');
+        var input8 = input7.replace(/"Severity :/g, '"Severity" : "');
+        var input9 = input8.replace(/"CreationDate :/g, '"CreationDate" : "');
+        var input10 = input9.replace(/"Owner :/g, '"Owner" : "');
+        var input11 = input10.replace(/"FormattedID :/g, '"FormattedID" : "');
+        var input12 = input11.replace(/"ClosedDate :/g, '"ClosedDate" : "');
+        var input13 = input12.replace(/"Aging :/g, '"Aging" : "');
+        var input14 = input13.replace(/"Release :/g, '"Release" :"');
+
+        //console.log(input14);
+        this._addUI(input14);
+        
+    },
+
+    _addUI: function (input) {
+        //Working stuff below here-------------------------------------------
+//----------------------------------------------------------------------------------------------------------------
+
+        //$('#container-1010-innerCt').html(
+        //    '<div id="Script container">' +
+        //       '<script type="text/javascript">\n' +
+        //           'google.charts.load("current", {packages:["corechart", "charteditor"]});\n' +
+        //            '$(function(){\n' +
+        //                'var derivers = $.pivotUtilities.derivers;\n ' +
+        //                'var renderers = $.extend($.pivotUtilities.renderers,\n' +
+        //                '$.pivotUtilities.gchart_renderers);\n' +
+        //       'var finalInput =' + input + ';\n' +
+        //            '$(function(){\n' +
+        //            '$("#output").pivotUI(finalInput, {\n' +
+        //                    'rows: ["Environment", "State"],' +
+        //                    'cols: ["Severity"],\n' +
+        //                'sorters: {' +
+        //                    'Environment: $.pivotUtilities.sortAs(["Development", "Test", "Staging","UAT/BETA", "Production", "Performance", "None"]),\n' +
+        //                    'Severity: $.pivotUtilities.sortAs(["Crash/Data Loss", "Major Problem","Minor Problem"]),\n' +
+        //                    'State: $.pivotUtilities.sortAs(["Submitted", "Open", "Fixed", "Failed", "Rejected", "Closed"])},\n' +
+        //                    'derivedAttributes: {\n' +
+        //                        '"Create Date": derivers.dateFormat("CreationDate", "%y/%m/%d"), \n' +
+        //                        '"Closed Date": derivers.dateFormat("ClosedDate", "%y/%m/%d") \n' +
+        //                    '},\n' +
+        //                    'hiddenAttributes:["CreationDate", "ClosedDate"],\n' +
+        //                'rendererOptions: {\n' +
+        //                    'table: {\n' +
+        //                        'clickCallback: function(e, value, filters, pivotData){\n' +
+        //                            'var clickData = [];\n' +
+        //                            'pivotData.forEachMatchingRecord(filters,\n' +
+        //                                'function(record){clickData.push(record.FormattedID); });\n' +
+        //                                'App(_createDrillMatrix(clickData));\n' +
+        //                       '}\n' +
+        //                      '}\n' +
+        //                      '}\n' +
+        //            '}); \n' +
+        //            '});\n' +
+        //            '});\n' +
+        //        '<' + '/' + 'script>' +
+        //        '</div>' +
+        //        '<div id="output">\n' +
+        //        '</div>'
+        //            );
+//-------------------------------------------------------------------------------------------------------------------------------------
+        //In progress below here-----------------------------------------------------------------
+
+        var that =this;
+        //console.log(input);
+       var finalInput =JSON.parse(input);
+        $('#container-1010-innerCt').html(
+             '</div>' +
+               '<div id="output">\n' +
+               '</div>'
+                   );
+
+            google.charts.load("current", {packages:["corechart", "charteditor"]});
+            var derivers = $.pivotUtilities.derivers;
+            var renderers = $.extend($.pivotUtilities.renderers,
+            $.pivotUtilities.gchart_renderers);
+                $("#output").pivotUI(finalInput, {
+                    rows: ["Environment", "State"],
+                    cols: ["Severity"],
+                    sorters: {
+                        Environment: $.pivotUtilities.sortAs(["Development", "Test", "Staging", "UAT/BETA", "Production", "Performance", "None"]),
+                        Severity: $.pivotUtilities.sortAs(["Crash/Data Loss", "Major Problem", "Minor Problem"]),
+                        State: $.pivotUtilities.sortAs(["Submitted", "Open", "Fixed", "Failed", "Rejected", "Closed"])
+                    },
+                    derivedAttributes: {
+                        "Create Date": derivers.dateFormat("CreationDate", "%y/%m/%d"),
+                        "Closed Date": derivers.dateFormat("ClosedDate", "%y/%m/%d")
+                    },
+                    hiddenAttributes: ["CreationDate", "ClosedDate"],
+                    rendererOptions: {
+                        table: {
+                            clickCallback: function(e, value, filters, pivotData){
+                                var clickData = [];
+                                pivotData.forEachMatchingRecord(filters,
+                                    function(record){clickData.push(record.FormattedID); });
+                                    that._createDrillMatrix(clickData);
+                          }
+                          }
+                          }
+                });
+
+    },
+    
+    _getFilter: function(clickData, i) {
+      
+      //console.log(clickData);
+        //var filter = [];
+        //var key1 = 'property:';
+        //var key2 = 'operator:';
+        //var key3 = 'value:';
+        //var filterLimit = clickData.length;
+        
+            //for(var i =0; i < filterLimit; i++) {
+                return{
+                    property: 'FormattedID',
+                    operator: '=',
+                    value: clickData[i]
+                };
+        
+        //console.log(filter);
+        
+        //return filter;
+        
+    },
+
+    _createDrillMatrix: function (clickData) {
+        console.log(clickData);
+        
+        
+        var filter = [];
+        
+        
+            for( var i=0; i < clickData.length; i++){
+                filter.push([this._getFilter(clickData, i) ]);
+                    }
+            var finalFilter = JSON.stringify(filter);
+            
+            finalFilter = finalFilter.replace(/\[/g, '{');
+            finalFilter = finalFilter.replace(/\]/g, '}');
+            finalFilter = finalFilter.replace(/^{/, '[');
+            finalFilter = finalFilter.replace(/}$/, ']');
+            finalFilter = finalFilter.replace(/{{/g, '{');
+            finalFilter = finalFilter.replace(/}}/g, '}');
+            //finalFilter = finalFilter.replace(/"property"/g, 'property');
+            //finalFilter = finalFilter.replace(/"operator"/g, 'operator');
+            //finalFilter = finalFilter.replace(/"value"/g, 'value');
+            //finalFilter = finalFilter.replace(/"/g, "'");
+            finalFilter= JSON.parse(finalFilter);
+            finalFilter= Rally.data.wsapi.Filter.or(finalFilter);
+            console.log(finalFilter);
+            
+          if(this.filteredStore) {
+              console.log('Store Exists');
+              this.filteredStore.setFilter(finalFilter);
+              this.filteredStore.load();
+          } else {
+              console.log('Create Store');
+              this.filteredStore = Ext.create('Rally.data.wsapi.Store', {
+                  model:'Defect',
+                  autoload: true,
+                  filters: finalFilter,
+                  listeners: {
+                      load: function(myStore, myData, success) {
+                          console.log('Data', myStore, myData, success);
+                          if (!this.defectGrid) {
+                              console.log('create grid');
+                              this._newGrid(myStore);
+                          }
+                      },
+                      scope: this
+                  },
+                  fetch: ['FormattedID', 'Name', 'State', 'Severity', 'Owner']
+              });
+          }
+          
+          console.log('End');
+            
+    },
+    
+    _newGrid: function(filteredStore) {
+
+        this.defectGrid = Ext.create('Rally.ui.grid.Grid', {
+            store:filteredStore,
+            columnCfgs: ['FormattedID', 'Name', 'State'],
+            limit: Infinity,
+            enableEditing: false,
+        });
+        this.add(this.defectGrid);
+        
+    }
+     
+});
+
+
+            Rally.launchApp('CustomApp', {
+                name:"rallymatrix",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+
+    <style type="text/css">
+        .app {
+  /* Add app styles here */
+}
+
+    </style>
+</head>
+<body>
+</body>
+</html>

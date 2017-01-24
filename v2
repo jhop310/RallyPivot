@@ -1,0 +1,158 @@
+    _severityValues: [],
+    _envValues: [],
+    
+    items:[
+        {
+            xtype:'panel',
+            itemId: 'grid1'
+        }],
+    
+launch : function(){
+    console.log('Launch');
+
+    this._loadDataModel().then({
+        success: this._getEnvironmentValues,
+    }).then ({
+            success: this._getSeverityValues,
+        }).then ({
+            success: this._getDefects,
+        });
+        scope:this;
+},
+
+    _loadDataModel: function(){
+       return Rally.data.ModelFactory.getModel({
+        type:'Defect'
+            });
+    },
+    
+    _getEnvironmentValues: function(model) {
+        var that = this;
+        that._model= model;
+        var deferred = Ext.create('Deft.Deferred');
+        var envValues = [];
+        model.getField('Environment').getAllowedValueStore().load({
+            callback: function(records, operation, success){
+                Ext.Array.each(records, function(allowedValue){
+                    envValues.push(allowedValue.get('stringValue'));
+                });
+                if(success){
+                    envValues=_.rest(envValues) ;
+                    deferred.resolve(envValues);
+                }
+                else{
+                    deferred.reject();
+                }
+            }
+        }) ;
+        return deferred.promise;
+    },
+    
+    
+    _getSeverityValues:function(envValues){
+        this._envValues = envValues;
+        var deferred = Ext.create('Deft.Deferred');
+        var that= this;
+        var severityValues = [];
+        that._model.getField('Severity').getAllowedValueStore().load({
+            callback: function(records,operation,success){
+                Ext.Array.each(records,function(allowedValue){
+                    severityValues.push(allowedValue.get('StringValue'));
+                });
+                if(success){
+                    severityValues = _.rest(severityValues);
+                    deferred.resolve(severityValues);
+                }
+                else{
+                    deferred.reject();
+                }
+
+            }
+        }) ;
+        return deferred.promise; 
+    },
+    
+    
+    _getDefects: function(severityValues){
+        this._severityValues = severityValues;
+        console.log('Severity Values', severityValues);
+        
+        var myStore = Ext.create('Rally.data.wsapi.Store',{
+            model:'Defect',
+            fetch: ['Severity', 'Environment'],
+            autoload: true,
+            filters:[
+                    {
+                        property: 'State',
+                        operator: '!=',
+                        value: 'Closed'
+                    }
+                ],
+            listeners: {
+                load:  function(myStore, myData, success) {
+                        console.log('Got Data!', myStore. myData, success);
+                        //this._onDefectLoad(myStore,myData);
+                    },
+                    scope:this
+                    },
+            });
+    },
+    
+    _onDefectLoad: function(store, data){
+        console.log(myStore,myData);
+        
+        var recordsBySeverity = {};
+        var recordsByEnvironment = {};
+        
+        _.each(data, function(record){
+            severity= record.get('Severity');
+            environment= record.get('Environment');
+            recordsBySeverity[severity]++;
+            recordsByEnvironment[environment]++;
+        });
+        this._createGrid(store);
+        
+        console.log('Severity Records', recordsBySeverity);
+        console.log('Environment Records', recordsByEnvironment);
+    },
+    
+    
+    _createGrid: function(store) {
+        this.grid = this.add(Ext.create('Rally.ui.grid.Grid',{
+            store: store,
+            showPagingToolbar: false,
+            sortableColumns: false,
+            showRowActionsColumn: false,
+            columnCfgs: this._buildColumns()
+            })
+            );
+    },
+
+
+    _buildColumns: function() {
+        var columns = [
+            {
+                text: '',
+                dataIndex: 'Severity',
+                flex: 0.4
+            }
+            ];
+            
+            Ext.each(this.environment, function(environment){
+            columns.push({
+                text: environment,
+                dataIndex: environment,
+                flex: 0.3
+            });
+            });
+            
+            columns.push({
+                text:'Total',
+                dataIndex: 'RowTotal',
+                flex: 0.3
+            });
+            return columns;
+    },
+    
+    
+});
